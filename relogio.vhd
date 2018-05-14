@@ -14,15 +14,15 @@ port ( clk, choose, enable, preset1, preset2, a, b, c, d, modo, modo_player: in 
 		 clk_button : in std_logic; --clk no botao para testes
 		 rco_test0,rco_test1,rco_test2,rco_test3,rco_test4,rco_test5,rco_test6,rco_test7 : out std_logic; --teste dos rco dos contadores
 		 method : in std_logic; --metodo Fischer ou Bronstein
-		 delta_fischer : in std_logic_vector(7 downto 0); --valor de 2 digitos de delta fischer
-		 delta_bronstein : in std_logic_vector(7 downto 0)); --valor de 2 digitos de delta bronstein maximo 																						  
+		 delta_in : in std_logic_vector(7 downto 0)); --valor de 2 digitos de delta
+		  																						  
 		 
 end relogio;
 
 
 architecture archi of relogio is
 
---definicao dos sinais internos
+----------------------____SINAIS INTERNOS___----------------------------
 signal clk_1760, clk_440, clk_1000, clk_100, clk_1 : std_logic; 
 signal rco0, rco1, rco2, rco3, rco4, rco5, rco6, rco7 : std_logic;
 signal Q0, Q1, Q2, Q3, Q4, Q5, Q6, Q7 : std_logic_vector(3 downto 0);
@@ -30,12 +30,15 @@ signal Qmux0_out, Qmux1_out, Qmux2_out, Qmux3_out, Qmux4_out, Qmux5_out : std_lo
 signal s : std_logic;
 signal preset_up, preset_down : std_logic; -- (preset1 or preset2)
 signal mux_control : std_logic_vector(1 downto 0);
-signal delta : std_logic_vector(7 downto 0);  --delta de 2 digitos ( delta(0) a delta(4) eh o primeiro digito)
+signal delta, delta_bronstein : std_logic_vector(7 downto 0);  --delta de 2 digitos ( delta(0) a delta(4) eh o primeiro digito)
 signal choose_up_edge,choose_down_edge : std_logic;
 signal sum_0, sum_1, sum_4, sum_5, total_sum_1,total_sum_5 : std_logic_vector(3 downto 0);
 signal co_0, co_1, co_4, co_5, co_total_1, co_total_5 : std_logic;
+signal lock : std_logic;
+signal delta_bronstein_0, delta_bronstein_1: std_logic_vector(3 downto 0);
+----------------------------===============================--------------------
 
------------------------____DEFINICAO DOS COMPONENTES___-----------------------
+-----------------------____ COMPONENTES___-----------------------
 component decimal port 
 			( en, CLR_n, up_down, clk, load_n, a, b, c, d, ent : in STD_LOGIC;
 			  Q : out std_logic_vector(3 downto 0);
@@ -86,6 +89,12 @@ component somador_BCD port
           S3, S2, S1, S0, Cout : out std_logic);
 end component;
 
+component bronstein_counter port	
+			(en, CLR_n, clk  : in std_logic;
+			 Q0, Q1 : out std_logic_vector(3 downto 0);
+			 delta_bronstein : in std_logic_vector(7 downto 0);
+			 lock : out std_logic);
+end component;
 ---------------------------===========================------------------------------
 
 begin
@@ -132,8 +141,8 @@ D7 : decimal port map
 ---------------------------------============================--------------------------------------------------
 
 ----------------------Teste de rco dos contadores----------------------
-rco_test0 <= rco0;
-rco_test1 <= rco1;
+rco_test0 <=rco0;
+rco_test1 <= choose_up_edge;
 rco_test2 <= rco2;
 rco_test3 <= rco3;
 rco_test4 <= rco4;
@@ -170,10 +179,26 @@ mux5 : mux4to1 port map
 ----------------------------------=================================------------------------------				
 				
 
--------------------------------------____IMPLEMENTACAO DO METODO____------------------------------EXP8------------
+-------------------------------------____IMPLEMENTACAO DO METODOS____------------------------------EXP8------------
+
+
+
+
+BRONSTEIN : bronstein_counter port map -- contador pra contar o delta_bronstein
+					(enable,not(choose_up_edge or choose_down_edge), clk, delta_bronstein_0, delta_bronstein_1, delta_in, lock);
+
+--Entrada de 8 bits para o multiplexador a partir das saidas de 4 bits do bronstein_counter
+delta_bronstein(0) <= delta_bronstein_0(0);
+delta_bronstein(1) <= delta_bronstein_0(1);
+delta_bronstein(2) <= delta_bronstein_0(2);
+delta_bronstein(3) <= delta_bronstein_0(3);
+delta_bronstein(4) <= delta_bronstein_1(0);
+delta_bronstein(5) <= delta_bronstein_1(1);
+delta_bronstein(6) <= delta_bronstein_1(2);
+delta_bronstein(7) <= delta_bronstein_1(3);
 
 delta_chooser : mux2to1_8bits port map
-				(method, delta_fischer, delta_bronstein, delta); --escolha do metodo 
+				(method, delta_in, delta_bronstein, delta); --escolha do metodo 
 				
 choose_edge_detector : edge_detector port map
 				(clk, '1' ,choose, choose_up_edge, choose_down_edge); --detector de borda para o choose
@@ -217,8 +242,8 @@ seg5 : setesegmentos port map
 
 			
 --sinais para teste
-Qtest0 <= Q0;
-Qtest1 <= Q1;
+Qtest0 <= delta_bronstein_0;
+Qtest1 <= delta_bronstein_1;
 Qtest2 <= Q2;
 Qtest3 <= Q3;
 Qtest4 <= Q4;
